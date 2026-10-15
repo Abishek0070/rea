@@ -220,12 +220,17 @@ const resolveLayoutExecutable = async (
   const programs = join(bundle, ...layout.programs);
   const executable = join(programs, name);
   let canonicalBundle: string;
+  try {
+    canonicalBundle = await fileSystem.realpath(bundle);
+  } catch (cause: unknown) {
+    return err(
+      new BinaryTargetError(bundle, errorReason(cause, bundle), { cause }),
+    );
+  }
+
   let canonicalPrograms: string;
   try {
-    [canonicalBundle, canonicalPrograms] = await Promise.all([
-      fileSystem.realpath(bundle),
-      fileSystem.realpath(programs),
-    ]);
+    canonicalPrograms = await fileSystem.realpath(programs);
   } catch (cause: unknown) {
     return err(executableResolutionError(executable, cause));
   }

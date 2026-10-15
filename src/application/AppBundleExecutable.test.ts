@@ -168,3 +168,36 @@ describe("app bundle program containment", () => {
     }
   });
 });
+
+describe("app bundle resolution error preservation", () => {
+  it("preserves bundle path and failure reason when resolving the bundle root fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "rea-bundle-realpath-err-"));
+    try {
+      const bundle = join(root, "Unreadable.app");
+      const contents = join(bundle, "Contents");
+      const plistPath = join(contents, "Info.plist");
+      await mkdir(contents, { recursive: true });
+      const plistContent =
+        "<plist><dict><key>CFBundleExecutable</key><string>App</string></dict></plist>";
+      await writeFile(plistPath, plistContent);
+      const denied = Object.assign(new Error("permission denied"), {
+        code: "EACCES",
+      });
+      const result = await resolveAppBundleExecutable(bundle, {
+        readFile: async () => Buffer.from(plistContent),
+        realpath: async (p) => {
+          if (p === bundle) throw denied;
+          return p;
+        },
+      });
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error("Expected resolution to fail");
+      expect(result.error.path).toBe(bundle);
+      expect(result.error.reason).toContain(
+        "permission denied accessing app bundle path",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
